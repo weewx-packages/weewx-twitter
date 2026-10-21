@@ -21,7 +21,7 @@ Installation instructions
 
 1) download
 
-wget -O weewx-twitter.zip https://github.com/matthewwall/weewx-twitter/archive/master.zip
+wget -O weewx-twitter.zip https://github.com/weewx-packages/weewx-twitter/archive/master.zip
 
 2) run the installer:
 
@@ -46,3 +46,18 @@ sudo /etc/init.d/weewx start
 Options
 
 For configuration options and details, see the comments in twitter.py
+
+Fixed local posting times
+
+[StdRESTful]
+    [[Twitter]]
+        post_times = 00:00, 06:00, 12:00, 18:00
+
+The first record within post_window seconds after each local time is posted.
+The default window is 300 seconds. Successful posts occur at most once per
+local date and slot while the service runs. Missing windows are skipped.
+post_times takes precedence over post_interval. With no post_times, the
+existing elapsed post_interval behaviour applies. The service needs a record
+at the scheduled time; it does not wake the station to collect a sample.
+
+Modified 2026-10-22 by weewx-packages.

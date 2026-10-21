@@ -1,3 +1,4 @@
+# Modified 2026-10-22 by weewx-packages: compatibility and tracker repairs.
 # installer for Twitter
 # Copyright 2014-2020 Matthew Wall
 # Distributed under the terms of the GNU Public License (GPLv3)
@@ -12,7 +13,7 @@ def loader():
 class TwitterInstaller(ExtensionInstaller):
     def __init__(self):
         super(TwitterInstaller, self).__init__(
-            version="0.15",
+            version="0.16.0",
             name='twitter',
             description='tweet weather data',
             author="Matthew Wall",

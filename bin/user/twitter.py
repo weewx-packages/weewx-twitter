@@ -1,3 +1,4 @@
+# Modified 2026-10-22 by weewx-packages: compatibility and tracker repairs.
 # Copyright 2014-2020 Matthew Wall
 """
 Tweet weather data
@@ -118,7 +119,7 @@ from weeutil.weeutil import to_bool, accumulateLeaves
 
 from twython import Twython, TwythonError, TwythonAuthError, TwythonRateLimitError
 
-VERSION = "0.15"
+VERSION = "0.16.0"
 
 if weewx.__version__ < "3":
     raise weewx.UnsupportedFeature("weewx 3 is required, found %s" %
@@ -235,6 +236,7 @@ class TwitterThread(weewx.restx.RESTThread):
                  app_key, app_key_secret, oauth_token, oauth_token_secret,
                  station, format, format_None, ordinals, format_utc=True,
                  unit_system=None, skip_upload=False,
+                 post_times=None, post_window=300,
                  log_success=True, log_failure=True,
                  post_interval=None, max_backlog=sys.maxsize, stale=None,
                  timeout=60, max_tries=3, retry_wait=5):
@@ -249,6 +251,23 @@ class TwitterThread(weewx.restx.RESTThread):
                                             max_tries=max_tries,
                                             timeout=timeout,
                                             retry_wait=retry_wait)
+        self.post_times = []
+        if post_times:
+            values = post_times.split(',') if isinstance(post_times, str) else post_times
+            for value in values:
+                match = re.match(r'^(\d{2}):(\d{2})$', value.strip())
+                if match is None:
+                    raise ValueError('post_times requires HH:MM entries')
+                hour, minute = (int(x) for x in match.groups())
+                if not 0 <= hour < 24 or not 0 <= minute < 60:
+                    raise ValueError('post_times requires hours 00-23 and minutes 00-59')
+                self.post_times.append(hour * 60 + minute)
+            self.post_interval = None
+        self.post_window = int(post_window)
+        if self.post_window <= 0:
+            raise ValueError('post_window must be positive')
+        self._posted_slot = None
+        self._scheduled_slot = None
         self.app_key = app_key
         self.app_key_secret = app_key_secret
         self.oauth_token = oauth_token
@@ -260,6 +279,20 @@ class TwitterThread(weewx.restx.RESTThread):
         self.format_utc = format_utc
         self.unit_system = unit_system
         self.skip_upload = to_bool(skip_upload)
+
+    def skip_this_post(self, time_ts):
+        if super(TwitterThread, self).skip_this_post(time_ts):
+            return True
+        if not self.post_times:
+            return False
+        local = time.localtime(time_ts)
+        seconds = local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec
+        for minute in sorted(self.post_times, reverse=True):
+            slot = (local.tm_year, local.tm_yday, minute)
+            if 0 <= seconds - minute * 60 < self.post_window:
+                self._scheduled_slot = slot
+                return slot == self._posted_slot
+        return True
 
     def format_tweet(self, record):
         msg = self.format
@@ -311,6 +344,7 @@ class TwitterThread(weewx.restx.RESTThread):
                 twitter = Twython(self.app_key, self.app_key_secret,
                                   self.oauth_token, self.oauth_token_secret)
                 twitter.update_status(status=msg)
+                self._posted_slot = self._scheduled_slot
                 return
             except TwythonAuthError as e:
                 raise weewx.restx.FailedPost("Authorization failed: %s" % e)

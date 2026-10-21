@@ -80,6 +80,7 @@ except ImportError:
 import re
 import sys
 import time
+import datetime
 
 try:
     # Test for new-style weewx logging by trying to import weeutil.logger
@@ -119,7 +120,7 @@ from weeutil.weeutil import to_bool, accumulateLeaves
 
 from twython import Twython, TwythonError, TwythonAuthError, TwythonRateLimitError
 
-VERSION = "0.16.0"
+VERSION = "0.16.1"
 
 if weewx.__version__ < "3":
     raise weewx.UnsupportedFeature("weewx 3 is required, found %s" %
@@ -266,7 +267,7 @@ class TwitterThread(weewx.restx.RESTThread):
         self.post_window = int(post_window)
         if self.post_window <= 0:
             raise ValueError('post_window must be positive')
-        self._posted_slot = None
+        self._posted_slots = set()
         self._scheduled_slot = None
         self.app_key = app_key
         self.app_key_secret = app_key_secret
@@ -287,11 +288,15 @@ class TwitterThread(weewx.restx.RESTThread):
             return False
         local = time.localtime(time_ts)
         seconds = local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec
-        for minute in sorted(self.post_times, reverse=True):
-            slot = (local.tm_year, local.tm_yday, minute)
-            if 0 <= seconds - minute * 60 < self.post_window:
-                self._scheduled_slot = slot
-                return slot == self._posted_slot
+        today = datetime.date(local.tm_year, local.tm_mon, local.tm_mday)
+        yesterday = today - datetime.timedelta(days=1)
+        self._posted_slots = {slot for slot in self._posted_slots if slot[0] in (today, yesterday)}
+        for date, offset in [(today, 0), (yesterday, 86400)]:
+            for minute in sorted(self.post_times, reverse=True):
+                slot = (date, minute)
+                if 0 <= seconds + offset - minute * 60 < self.post_window:
+                    self._scheduled_slot = slot
+                    return slot in self._posted_slots
         return True
 
     def format_tweet(self, record):
@@ -344,7 +349,8 @@ class TwitterThread(weewx.restx.RESTThread):
                 twitter = Twython(self.app_key, self.app_key_secret,
                                   self.oauth_token, self.oauth_token_secret)
                 twitter.update_status(status=msg)
-                self._posted_slot = self._scheduled_slot
+                if self._scheduled_slot is not None:
+                    self._posted_slots.add(self._scheduled_slot)
                 return
             except TwythonAuthError as e:
                 raise weewx.restx.FailedPost("Authorization failed: %s" % e)

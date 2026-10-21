@@ -27,5 +27,53 @@
       "exit_code": 1,
       "observed_failure": "E       AssertionError: assert ['06:00', '06...:00', '18:00'] == ['06:00', '12:00', '18:00']\nE         \nE         At index 1 diff: '06:00' != '12:00'\nE         Left contains one more item: '18:00'\nE         Use -v to get more diff\nFAILED tests/test_twitter.py::test_fixed_times_ignore_startup_and_elapsed_interval"
     }
-  ]
+  ],
+  "independent_review_2026_10_22": {
+    "upstream_refs": {
+      "master": "e0a863062aa957fd8a4b0c5c8484d6530bbf0f4c",
+      "development": "06b5ffb3335417132d7527e738e7eea9769c46bf"
+    },
+    "environments": [
+      {
+        "environment": "master-py310",
+        "exit_code": 0,
+        "summary": "10 passed in 0.16s"
+      },
+      {
+        "environment": "master-py314",
+        "exit_code": 0,
+        "summary": "10 passed in 0.06s"
+      },
+      {
+        "environment": "development-py310",
+        "exit_code": 0,
+        "summary": "10 passed in 0.16s"
+      },
+      {
+        "environment": "development-py314",
+        "exit_code": 0,
+        "summary": "10 passed in 0.17s"
+      }
+    ],
+    "mutations": [
+      {
+        "mutation": "dst-slot-memory",
+        "test": "tests/test_twitter.py::test_successful_slots_are_not_reposted_during_repeated_dst_hour",
+        "detected": true,
+        "failure_summary": "1 failed in 0.05s",
+        "restored_exit_code": 0
+      },
+      {
+        "mutation": "midnight-window",
+        "test": "tests/test_twitter.py::test_posting_window_can_cross_midnight",
+        "detected": true,
+        "failure_summary": "1 failed in 0.06s",
+        "restored_exit_code": 0
+      }
+    ],
+    "limits": [
+      "No external account, live API, hardware or renderer certification."
+    ],
+    "previous_release_unchanged": true
+  }
 }

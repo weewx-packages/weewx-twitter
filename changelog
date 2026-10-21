@@ -1,3 +1,6 @@
+2026-10-22  0.16.1
+  Remember every successful local time slot through a repeated DST hour and allow posting windows to cross midnight.
+
 0.15 08may2020
 * Ported to Python 3 and WeeWX V4. -tk
 

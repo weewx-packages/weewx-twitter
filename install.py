@@ -13,7 +13,7 @@ def loader():
 class TwitterInstaller(ExtensionInstaller):
     def __init__(self):
         super(TwitterInstaller, self).__init__(
-            version="0.16.0",
+            version="0.16.1",
             name='twitter',
             description='tweet weather data',
             author="Matthew Wall",

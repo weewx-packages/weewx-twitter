@@ -1,6 +1,7 @@
 # Modified 2026-10-22 by weewx-packages: compatibility and tracker repairs.
 # Modified 2026-10-23 by weewx-packages: pass timeout to Twython, ignore unknown
 #   options, log invalid settings instead of stopping WeeWX.
+# Modified 2026-10-23 by weewx-packages: stop the thread when WeeWX shuts down.
 # Copyright 2014-2020 Matthew Wall
 """
 Tweet weather data
@@ -231,16 +232,19 @@ class Twitter(weewx.restx.StdRESTbase):
             logwarn("Ignoring unknown option %s" % key)
             del site_dict[key]
 
-        self.data_queue = queue.Queue()
+        # One thread and one queue take both loop packets and archive records.
+        # They are stored as archive_queue and archive_thread because
+        # StdRESTful.shutDown() looks for these names to stop the thread.
+        self.archive_queue = queue.Queue()
         # TwitterThread raises ValueError for a malformed post_times or
         # post_window, and RESTThread for a non-numeric value. Log it and
         # leave the service idle, so that WeeWX keeps running.
         try:
-            data_thread = TwitterThread(self.data_queue, **site_dict)
+            self.archive_thread = TwitterThread(self.archive_queue, **site_dict)
         except ValueError as e:
             logerr("Tweets will not be posted: %s" % e)
             return
-        data_thread.start()
+        self.archive_thread.start()
 
         if 'loop' in binding.lower():
             self.bind(weewx.NEW_LOOP_PACKET, self.handle_new_loop)
@@ -253,13 +257,13 @@ class Twitter(weewx.restx.StdRESTbase):
         # Make a copy... we will modify it
         packet = dict(event.packet)
         packet['binding'] = 'loop'
-        self.data_queue.put(packet)
+        self.archive_queue.put(packet)
 
     def handle_new_archive(self, event):
         # Make a copy... we will modify it
         record = dict(event.record)
         record['binding'] = 'archive'
-        self.data_queue.put(record)
+        self.archive_queue.put(record)
 
 class TwitterThread(weewx.restx.RESTThread):
     def __init__(self, queue, 

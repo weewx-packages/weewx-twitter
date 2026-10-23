@@ -126,3 +126,15 @@ def test_unknown_option_is_ignored_with_warning(tmp_path,monkeypatch,caplog):
 def test_invalid_value_leaves_service_idle(tmp_path,monkeypatch,caplog,option,value):
     assert service(tmp_path,monkeypatch,**{option:value})==[]
     assert 'Tweets will not be posted' in caplog.text
+
+
+def test_shutdown_stops_the_thread(tmp_path):
+    import types
+    import configobj
+    engine=types.SimpleNamespace(stn_info=types.SimpleNamespace(location='Station'),bind=lambda *args: None)
+    site={'app_key':'key','app_key_secret':'secret','oauth_token':'token','oauth_token_secret':'secret'}
+    service=twitter.Twitter(engine,configobj.ConfigObj({'WEEWX_ROOT':str(tmp_path),'StdRESTful':{'Twitter':site}}))
+    thread=service.archive_thread
+    assert thread.is_alive()
+    service.shutDown()
+    assert not thread.is_alive()

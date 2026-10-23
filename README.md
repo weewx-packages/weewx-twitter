@@ -12,12 +12,15 @@ The catalog archive targets WeeWX `>=5.5.2,<5.7` and Python `>=3.10,<3.15`.
 
 ## Requirements
 
-Install Twython in the Python environment running WeeWX. For a WeeWX virtual
-environment:
+Activate the virtual environment that runs WeeWX before using `python` or
+`weectl`, then install Twython:
 
 ```sh
-python -m pip install twython
+python -m pip install 'twython'
 ```
+
+For a system installation, use your distribution's Twython package in WeeWX's
+Python environment. The extension installer does not install this dependency.
 
 You need an application key and secret plus an OAuth user token and secret.
 The account and application must have write access to the API used by
@@ -26,16 +29,15 @@ installing this extension does not grant API access.
 
 ## Install
 
-Use `weectl` from the Python environment running WeeWX. With stock WeeWX 5,
-install the published archive:
+Replace `/path/to/weewx.conf` with your existing station configuration. Use
+`weectl` from the Python environment running WeeWX to install the archive:
 
 ```sh
 weectl extension install https://github.com/weewx-packages/weewx-twitter/releases/download/v0.16.1/weewx-twitter-0.16.1.tar.gz --config /path/to/weewx.conf
 ```
 
-Replace `/path/to/weewx.conf` with your station configuration. You can also
-download that URL and pass the local archive to the same command. Use elevated
-permissions only when your station files require them.
+You can also download that URL and pass the local archive to the same command.
+Use elevated permissions only when your station files require them.
 
 ## Configure posts
 

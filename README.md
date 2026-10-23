@@ -1,45 +1,41 @@
 # Weather posts to Twitter/X from WeeWX
 
 Format weather observations as text and publish them through Twython's
-`update_status` API. The service supports archive or LOOP events and optional
-fixed local posting times.
+`update_status` API. The service posts on archive records or LOOP packets, at
+an elapsed interval or at fixed local times.
 
-This is the weewx-packages continuation, release **0.16.1**.
+This is the weewx-packages continuation of
+[matthewwall/weewx-twitter](https://github.com/matthewwall/weewx-twitter).
 [Origin](ORIGIN.md) records the upstream revision; [repair notes](REPAIR_NOTES.md)
 describe the maintenance changes.
 
-The catalog archive targets WeeWX `>=5.5.2,<5.7` and Python `>=3.10,<3.15`.
-
 ## Requirements
 
-Activate the virtual environment that runs WeeWX before using `python` or
-`weectl`, then install Twython:
+* An application key and secret plus an OAuth user token and secret. The
+  account and application need write access to the API that Twython's
+  `update_status` uses. Installing this extension does not grant API access.
+  Check the provider's current access conditions.
+* The Python package Twython. The extension installer does not install it.
+  Activate the virtual environment that runs WeeWX, then run:
 
-```sh
-python -m pip install 'twython'
-```
+  ```sh
+  python -m pip install twython
+  ```
 
-For a system installation, use your distribution's Twython package in WeeWX's
-Python environment. The extension installer does not install this dependency.
+  For a system installation of WeeWX, use your distribution's Twython package
+  for the Python that runs WeeWX.
 
-You need an application key and secret plus an OAuth user token and secret.
-The account and application must have write access to the API used by
-Twython's `update_status`. Check the provider's current access conditions;
-installing this extension does not grant API access.
+## Installation
 
-## Install
+Install `twitter` from the [WeeWX packages catalog](https://github.com/weewx-packages/catalog/blob/main/packages/twitter.md).
+The catalog page lists the current release, its WeeWX and Python
+requirements, and the install, update and removal commands.
 
-Replace `/path/to/weewx.conf` with your existing station configuration. Use
-`weectl` from the Python environment running WeeWX to install the archive:
+The installer registers `user.twitter.Twitter` as a RESTful service and adds a
+`[[Twitter]]` section with placeholder credentials. Replace them as shown
+below, restart WeeWX, then check its log after the next eligible record.
 
-```sh
-weectl extension install https://github.com/weewx-packages/weewx-twitter/releases/download/v0.16.1/weewx-twitter-0.16.1.tar.gz --config /path/to/weewx.conf
-```
-
-You can also download that URL and pass the local archive to the same command.
-Use elevated permissions only when your station files require them.
-
-## Configure posts
+## Configuration
 
 ```ini
 [StdRESTful]
@@ -51,21 +47,50 @@ Use elevated permissions only when your station files require them.
         post_interval = 3600
 ```
 
-The installer registers `user.twitter.Twitter`. Restart WeeWX yourself and
-check its log after an eligible archive record. This example limits posts to
-one per hour. Without `post_interval` or `post_times`, each arriving record can
-produce a post.
+This example posts at most once per hour. Without `post_interval` or
+`post_times`, every record produces a post.
 
-## Format and schedule
+| Option | Default | Meaning |
+|---|---|---|
+| `app_key` | required | Application key. |
+| `app_key_secret` | required | Application key secret. |
+| `oauth_token` | required | OAuth user token. |
+| `oauth_token_secret` | required | OAuth user token secret. |
+| `enable` | `true` | Set to `false` to turn the service off. |
+| `binding` | `archive` | `archive`, `loop`, or both, comma separated. |
+| `station` | `location` from `[Station]` | Station name for the `{station}` placeholder. |
+| `format` | see below | Text of each post. |
+| `format_None` | `-` | Text for an observation without a value. |
+| `ordinals` | `N, NNE, … NNW, N, -` | 18 comma-separated labels for `{windDir:ord}`, from north in 22.5° steps. The last one marks an invalid direction. |
+| `format_utc` | `false` | Format `{dateTime}` in UTC instead of local time. |
+| `unit_system` | none | `US`, `METRIC` or `METRICWX`. Without it, values keep the units of the record. |
+| `post_times` | none | Fixed local posting times, `HH:MM` with two digits each, comma separated. |
+| `post_window` | `300` | Seconds after each `post_times` slot in which a record can be posted. |
+| `post_interval` | none | Minimum seconds between posts. Ignored when `post_times` is set. |
+| `skip_upload` | `false` | Format each post but do not send it. |
+| `max_backlog` | unlimited | Queued records kept when posting falls behind. |
+| `stale` | none | Skip records older than this many seconds. |
+| `log_success` | top-level `log_success`, else `true` | Log each successful post. |
+| `log_failure` | top-level `log_failure`, else `true` | Log each failed post. |
+| `timeout` | `60` | Accepted but not passed to Twython. |
+| `max_tries` | `3` | Attempts per record. |
+| `retry_wait` | `5` | Seconds between attempts. |
 
-The default text includes the station name and common weather readings in
-archive units. Set `unit_system` to `US`, `METRIC` or `METRICWX` to convert them.
-The `format` setting uses placeholders such as `{outTemp:%.1f}`,
-`{windDir:ord}` and `{dateTime:%H:%M}`. `format_None` substitutes for null values;
-`format_utc = true` formats timestamps in UTC. See
-[bin/user/twitter.py](bin/user/twitter.py) for the default format and options.
+### Changing the text
 
-For fixed local times, add:
+The default format is:
+
+```
+{station:%.8s}: Ws: {windSpeed:%.1f}; Wd: {windDir:%03.0f}; Wg: {windGust:%.1f}; oT: {outTemp:%.1f}; oH: {outHumidity:%.2f}; P: {barometer:%.3f}; R: {rain:%.3f}
+```
+
+A placeholder is a WeeWX observation name in braces, optionally with a
+`%` format after a colon, such as `{outTemp:%.1f}`. Without a format the value
+is inserted as it is. `{windDir:ord}` inserts a compass point such as `NNE`.
+`{dateTime:%H:%M}` takes a `strftime` format. A placeholder for an observation
+that the record does not contain stays in the text unchanged.
+
+### Posting at fixed times
 
 ```ini
 [StdRESTful]
@@ -74,14 +99,33 @@ For fixed local times, add:
         post_window = 300
 ```
 
-`post_times` takes precedence over `post_interval`. The first record within the
-window after a slot is eligible. Successful posts occur once per local date
-and slot while the service runs. Missed windows are skipped; slot history is
-in memory and resets on restart. No timer wakes WeeWX to collect readings.
-`binding = loop` selects LOOP events; the default is `archive`.
+Records within the window after a slot are posted until one post succeeds. A
+window may cross midnight. Each slot is posted at most once per local date, also through a
+repeated hour at the end of daylight saving time. Records outside every window
+are not posted.
 
-The implementation uses Twython's status-update interface and has no separate
-API v2 writer. Text length, account access and provider limits still apply.
-Files in `stash/` are earlier experiments, not installed services.
+## Limitations
+
+* Fixed times need a record in the window. No timer wakes WeeWX, and missed
+  windows are skipped.
+* The record of posted slots is kept in memory and resets when WeeWX restarts.
+* The service uses Twython's status-update interface. It has no separate API
+  v2 writer. Text length, account access and provider limits apply.
+* An unknown `unit_system`, a malformed `post_times` entry, a `post_window` of
+  zero or less, or an option not named on this page stops WeeWX at startup.
+* Files in `stash/` are earlier experiments. The installer does not install
+  them.
+* The tests replace Twython with a local stub. They do not post to a real
+  account.
+
+## Development
+
+```sh
+python -m pytest -q tests
+```
+
+Run it in a Python environment with WeeWX, Twython and pytest installed.
+
+## License
 
 Copyright 2014-2020 Matthew Wall. [GNU GPLv3](license).

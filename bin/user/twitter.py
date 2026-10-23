@@ -1,4 +1,6 @@
 # Modified 2026-10-22 by weewx-packages: compatibility and tracker repairs.
+# Modified 2026-10-23 by weewx-packages: pass timeout to Twython, ignore unknown
+#   options, log invalid settings instead of stopping WeeWX.
 # Copyright 2014-2020 Matthew Wall
 """
 Tweet weather data
@@ -77,6 +79,7 @@ try:
 except ImportError:
     # Python 2
     import Queue as queue
+import inspect
 import re
 import sys
 import time
@@ -94,6 +97,9 @@ try:
     def loginf(msg):
         log.info(msg)
 
+    def logwarn(msg):
+        log.warning(msg)
+
     def logerr(msg):
         log.error(msg)
 
@@ -109,6 +115,9 @@ except ImportError:
 
     def loginf(msg):
         logmsg(syslog.LOG_INFO, msg)
+
+    def logwarn(msg):
+        logmsg(syslog.LOG_WARNING, msg)
 
     def logerr(msg):
         logmsg(syslog.LOG_ERR, msg)
@@ -190,10 +199,13 @@ class Twitter(weewx.restx.StdRESTbase):
         site_dict.setdefault('station', engine.stn_info.location)
 
         # if a unit system was specified, get the weewx constant for it.
-        # do it here so a bogus unit system will cause weewx to die
-        # immediately, not simply cause the twitter thread to crap out.
+        # do it here so a bogus unit system is reported once at startup, not
+        # with every record in the twitter thread.
         usn = site_dict.get('unit_system')
         if usn is not None:
+            if usn not in weewx.units.unit_constants:
+                logerr("Tweets will not be posted: unknown unit_system %s" % usn)
+                return
             site_dict['unit_system'] = weewx.units.unit_constants[usn]
             loginf('units will be converted to %s' % usn)
 
@@ -209,8 +221,25 @@ class Twitter(weewx.restx.StdRESTbase):
             binding = ','.join(binding)
         loginf('binding is %s' % binding)
 
+        # The options are passed to TwitterThread as keyword arguments, so a
+        # name it does not accept would raise TypeError and stop WeeWX. Drop
+        # such names instead. 'queue' is not an option; the service passes
+        # its own queue.
+        known = set(inspect.signature(TwitterThread.__init__).parameters)
+        known -= {'self', 'queue'}
+        for key in sorted(set(site_dict) - known):
+            logwarn("Ignoring unknown option %s" % key)
+            del site_dict[key]
+
         self.data_queue = queue.Queue()
-        data_thread = TwitterThread(self.data_queue, **site_dict)
+        # TwitterThread raises ValueError for a malformed post_times or
+        # post_window, and RESTThread for a non-numeric value. Log it and
+        # leave the service idle, so that WeeWX keeps running.
+        try:
+            data_thread = TwitterThread(self.data_queue, **site_dict)
+        except ValueError as e:
+            logerr("Tweets will not be posted: %s" % e)
+            return
         data_thread.start()
 
         if 'loop' in binding.lower():
@@ -347,7 +376,8 @@ class TwitterThread(weewx.restx.RESTThread):
             ntries += 1
             try:
                 twitter = Twython(self.app_key, self.app_key_secret,
-                                  self.oauth_token, self.oauth_token_secret)
+                                  self.oauth_token, self.oauth_token_secret,
+                                  client_args={'timeout': self.timeout})
                 twitter.update_status(status=msg)
                 if self._scheduled_slot is not None:
                     self._posted_slots.add(self._scheduled_slot)

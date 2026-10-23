@@ -1,4 +1,4 @@
-Unreleased
+2026-10-23  0.16.2
   Pass timeout to Twython; it was accepted but not used. Ignore unknown options with a warning instead of stopping WeeWX at startup. An unknown unit_system, a malformed post_times entry or a post_window of zero or less is logged as an error and leaves the service off; WeeWX keeps running.
   Stop the Twitter thread when WeeWX shuts down. StdRESTful.shutDown() did not find it, because the thread and its queue were stored under other names.
 

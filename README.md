@@ -72,9 +72,14 @@ This example posts at most once per hour. Without `post_interval` or
 | `stale` | none | Skip records older than this many seconds. |
 | `log_success` | top-level `log_success`, else `true` | Log each successful post. |
 | `log_failure` | top-level `log_failure`, else `true` | Log each failed post. |
-| `timeout` | `60` | Accepted but not passed to Twython. |
+| `timeout` | `60` | Seconds to wait for Twitter's server. |
 | `max_tries` | `3` | Attempts per record. |
 | `retry_wait` | `5` | Seconds between attempts. |
+
+WeeWX logs a warning for any other option in the section and ignores it. An
+unknown `unit_system`, a malformed `post_times` entry, or a `post_window` of
+zero or less is logged as an error, and the service stays off while WeeWX
+keeps running.
 
 ### Changing the text
 
@@ -111,8 +116,6 @@ are not posted.
 * The record of posted slots is kept in memory and resets when WeeWX restarts.
 * The service uses Twython's status-update interface. It has no separate API
   v2 writer. Text length, account access and provider limits apply.
-* An unknown `unit_system`, a malformed `post_times` entry, a `post_window` of
-  zero or less, or an option not named on this page stops WeeWX at startup.
 * Files in `stash/` are earlier experiments. The installer does not install
   them.
 * The tests replace Twython with a local stub. They do not post to a real
